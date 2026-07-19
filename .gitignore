@@ -1,3 +1,19 @@
-*.db
-*.pptx
-__pycache__
+# Python cache
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+.env.*
+
+# Virtual environments
+.venv/
+venv/
+
+# Large installer
+Miniconda3-latest-Linux-x86_64.sh
+
+# Temporary SQLite files only
+*.db-journal
+*.db-wal
+*.db-shm
