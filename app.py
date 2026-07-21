@@ -1,32 +1,34 @@
-import sqlite3
-import uuid
+import sqlite3 # 별도의 서버 없이 파일 하나에 모든 데이터를 저장하는 가볍고 빠른 임베디드 SQL 데이터베이스
+import uuid # 중복될 가능성이 매우 낮은 ID를 만듦
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
 from flask_socketio import SocketIO, send
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
+app.config['SECRET_KEY'] = 'secret!' # app.config는 Flask 앱의 설정값 모음
 DATABASE = 'market.db'
-socketio = SocketIO(app)
+socketio = SocketIO(app) # 현재 Flask app에 실시간 통신 기능을 붙임
 
 # 데이터베이스 연결 관리: 요청마다 연결 생성 후 사용, 종료 시 close
 def get_db():
-    db = getattr(g, '_database', None)
+    #  g 안에 _database라는 값이 있으면 가져오고, 없으면 None을 반환
+    db = getattr(g, '_database', None) # g: 현재 HTTP 요청 동안 잠깐 데이터를 저장하는 Flask 객체
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row  # 결과를 dict처럼 사용하기 위함
+        db.row_factory = sqlite3.Row  # DB 조회 결과를 번호뿐 아니라 열 이름으로도 사용할 수 있게 함 (user['id'], user['username']처럼)
     return db
 
+# 애플리케이션 요청 처리가 끝나면 close_connection()을 자동으로 실행
 @app.teardown_appcontext
-def close_connection(exception):
+def close_connection(exception): # 정상 종료: None, 오류 발생 후 종료: 오류 정보
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
 
 # 테이블 생성 (최초 실행 시에만)
 def init_db():
-    with app.app_context():
+    with app.app_context(): # Flask 앱과 관련된 기능을 사용할 수 있는 임시 환경을 만듦
         db = get_db()
-        cursor = db.cursor()
+        cursor = db.cursor() # 연결에서 SQL문을 실행할 커서 객체를 만듦
         # 사용자 테이블 생성
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user (
@@ -77,7 +79,7 @@ def register():
         if cursor.fetchone() is not None:
             flash('이미 존재하는 사용자명입니다.')
             return redirect(url_for('register'))
-        user_id = str(uuid.uuid4())
+        user_id = str(uuid.uuid4()) # 고유 아이디 생성
         cursor.execute("INSERT INTO user (id, username, password) VALUES (?, ?, ?)",
                        (user_id, username, password))
         db.commit()
@@ -94,14 +96,14 @@ def login():
         db = get_db()
         cursor = db.cursor()
         cursor.execute("SELECT * FROM user WHERE username = ? AND password = ?", (username, password))
-        user = cursor.fetchone()
+        user = cursor.fetchone() # SQL 쿼리 실행 결과에서 단 하나의 행(Row)만을 가져올 때 사용
         if user:
             session['user_id'] = user['id']
             flash('로그인 성공!')
             return redirect(url_for('dashboard'))
         else:
             flash('아이디 또는 비밀번호가 올바르지 않습니다.')
-            return redirect(url_for('login'))
+            return redirect(url_for('login'))  # 웹 서버가 클라이언트에게 요청한 페이지가 아닌 다른 URL로 재접속하도록 지시하는 기능
     return render_template('login.html')
 
 # 로그아웃
@@ -201,7 +203,7 @@ def report():
 
 # 실시간 채팅: 클라이언트가 메시지를 보내면 전체 브로드캐스트
 @socketio.on('send_message')
-def handle_send_message_event(data):
+def handle_send_message_event(data): # data: 클라이언트가 보낸 채팅 데이터
     data['message_id'] = str(uuid.uuid4())
     send(data, broadcast=True)
 
