@@ -16,7 +16,9 @@
 <h3>실시간 채팅</h3>
 <div id="chat">
   <ul id="messages"></ul>
-  <input id="chat_input" type="text" placeholder="메시지를 입력하세요">
+  <input id="chat_input" type="text"
+       maxlength="500"
+       placeholder="메시지를 입력하세요">
   <button onclick="sendMessage()">전송</button>
 </div>
 
@@ -36,7 +38,7 @@
     var input = document.getElementById('chat_input');
     var message = input.value;
     if (message) {
-      socket.emit('send_message', { 'username': "{{ user.username }}", 'message': message }); // Socket.IO 서버에 특정 이벤트와 데이터를 보낸다
+      socket.emit('send_message', { 'message': message });
       input.value = "";
     }
   }
