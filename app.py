@@ -33,6 +33,7 @@ MAX_PRODUCT_DESCRIPTION_LENGTH = 2000
 MAX_PRODUCT_PRICE = 100_000_000
 MAX_REPORT_REASON_LENGTH = 1000
 MAX_CHAT_MESSAGE_LENGTH = 500
+MAX_SEARCH_QUERY_LENGTH = 100
 
 USERNAME_PATTERN = re.compile(r'[A-Za-z0-9_]{4,20}')
 DATABASE = 'market.db'
@@ -167,20 +168,65 @@ def logout():
     flash('로그아웃되었습니다.')
     return redirect(url_for('index'))
 
-# 대시보드: 사용자 정보와 전체 상품 리스트 표시
+# 대시보드: 상품 목록 및 검색 결과 표시
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+
     db = get_db()
     cursor = db.cursor()
-    # 현재 사용자 조회
-    cursor.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],))
+
+    cursor.execute(
+        "SELECT * FROM user WHERE id = ?",
+        (session['user_id'],)
+    )
     current_user = cursor.fetchone()
-    # 모든 상품 조회
-    cursor.execute("SELECT * FROM product")
-    all_products = cursor.fetchall()
-    return render_template('dashboard.html', products=all_products, user=current_user)
+
+    if current_user is None:
+        session.clear()
+        flash('사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.')
+        return redirect(url_for('login'))
+
+    query = request.args.get('q', '').strip()
+
+    if len(query) > MAX_SEARCH_QUERY_LENGTH:
+        flash(f'검색어는 {MAX_SEARCH_QUERY_LENGTH}자 이하로 입력해주세요.')
+        return render_template(
+            'dashboard.html',
+            products=[],
+            user=current_user,
+            query=query
+        ), 400
+
+    if query:
+        # %, _, !가 검색용 특수문자로 해석되지 않도록 처리
+        escaped_query = (
+            query.replace('!', '!!')
+                 .replace('%', '!%')
+                 .replace('_', '!_')
+        )
+        search_pattern = f'%{escaped_query}%'
+
+        cursor.execute(
+            """
+            SELECT * FROM product
+            WHERE title LIKE ? ESCAPE '!'
+               OR description LIKE ? ESCAPE '!'
+            """,
+            (search_pattern, search_pattern)
+        )
+    else:
+        cursor.execute("SELECT * FROM product")
+
+    products = cursor.fetchall()
+
+    return render_template(
+        'dashboard.html',
+        products=products,
+        user=current_user,
+        query=query
+    )
 
 # 프로필 페이지: bio 업데이트 가능
 @app.route('/profile', methods=['GET', 'POST'])

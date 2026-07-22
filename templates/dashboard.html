@@ -3,11 +3,38 @@
 {% block content %}
 <h2>대시보드</h2>
 <h3>등록된 상품</h3>
+<form method="get" action="{{ url_for('dashboard') }}">
+  <input
+    type="search"
+    name="q"
+    value="{{ query }}"
+    maxlength="100"
+    placeholder="상품명 또는 설명 검색"
+  >
+  <button type="submit">검색</button>
+</form>
+
+{% if query %}
+  <p>
+    "{{ query }}" 검색 결과
+    · <a href="{{ url_for('dashboard') }}">검색 초기화</a>
+  </p>
+{% endif %}
 <ul>
   {% for product in products %}
     <li>
-      <a href="{{ url_for('view_product', product_id=product.id) }}">{{ product.title }}</a>
+      <a href="{{ url_for('view_product', product_id=product.id) }}">
+        {{ product.title }}
+      </a>
       - 가격: {{ product.price }}
+    </li>
+  {% else %}
+    <li>
+      {% if query %}
+        검색 결과가 없습니다.
+      {% else %}
+        등록된 상품이 없습니다.
+      {% endif %}
     </li>
   {% endfor %}
 </ul>
