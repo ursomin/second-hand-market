@@ -83,6 +83,28 @@
       margin-bottom: 10px;
       background-color: #fafafa;
     }
+
+   /* ㅇ */
+    nav .logout-form {
+      display: inline;
+    }
+
+    nav .logout-form button {
+      width: auto;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      background: none;
+      color: #555;
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    nav .logout-form button:hover {
+      background: none;
+      color: #005BB5;
+    }
   </style>
 </head>
 <body>
@@ -91,7 +113,10 @@
       <a href="{{ url_for('dashboard') }}">대시보드</a>
       <a href="{{ url_for('profile') }}">프로필</a>
       <a href="{{ url_for('report') }}">신고하기</a>
-      <a href="{{ url_for('logout') }}">로그아웃</a>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">로그아웃</button>
+      </form>
     {% else %}
       <a href="{{ url_for('login') }}">로그인</a>
       <a href="{{ url_for('register') }}">회원가입</a>

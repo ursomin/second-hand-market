@@ -153,10 +153,10 @@ def login():
             return redirect(url_for('login'))  # 웹 서버가 클라이언트에게 요청한 페이지가 아닌 다른 URL로 재접속하도록 지시하는 기능
     return render_template('login.html')
 
-# 로그아웃
-@app.route('/logout')
+# 세션 상태를 변경하므로 POST 요청과 CSRF 검증을 사용
+@app.route('/logout', methods=['POST'])
 def logout():
-    session.pop('user_id', None)
+    session.clear()
     flash('로그아웃되었습니다.')
     return redirect(url_for('index'))
 
