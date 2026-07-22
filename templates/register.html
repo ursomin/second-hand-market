@@ -3,6 +3,8 @@
 {% block content %}
 <h2>회원가입</h2>
 <form method="post">
+    <!-- 서버가 생성한 CSRF 토큰을 POST 요청에 함께 전송 -->
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   사용자명:
   <input
     type="text"

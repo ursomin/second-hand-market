@@ -7,6 +7,8 @@ from flask_socketio import SocketIO, send
 # 비밀번호 해시 적용
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
+# 요청 위조 방지를 위한 CSRF 보호 기능
+from flask_wtf.csrf import CSRFProtect
 
 # 프로젝트 루트의 .env 파일을 환경변수로 불러옴
 load_dotenv()
@@ -21,6 +23,10 @@ if not secret_key:
     raise RuntimeError('SECRET_KEY 환경변수가 설정되지 않았습니다.')
 
 app.config['SECRET_KEY'] = secret_key
+
+# POST 요청에 포함된 CSRF 토큰이 서버가 발급한 토큰과 일치하는지 검사
+csrf = CSRFProtect(app)
+
 USERNAME_PATTERN = re.compile(r'[A-Za-z0-9_]{4,20}')
 DATABASE = 'market.db'
 socketio = SocketIO(app) # 현재 Flask app에 실시간 통신 기능을 붙임
