@@ -26,6 +26,12 @@ app.config['SECRET_KEY'] = secret_key
 
 # POST 요청에 포함된 CSRF 토큰이 서버가 발급한 토큰과 일치하는지 검사
 csrf = CSRFProtect(app)
+# 서버 측 입력값 검증 기준
+MAX_BIO_LENGTH = 500
+MAX_PRODUCT_TITLE_LENGTH = 100
+MAX_PRODUCT_DESCRIPTION_LENGTH = 2000
+MAX_PRODUCT_PRICE = 1_000_000_000
+MAX_REPORT_REASON_LENGTH = 1000
 
 USERNAME_PATTERN = re.compile(r'[A-Za-z0-9_]{4,20}')
 DATABASE = 'market.db'
@@ -180,16 +186,42 @@ def dashboard():
 def profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+
     db = get_db()
     cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT * FROM user WHERE id = ?",
+        (session['user_id'],)
+    )
+    current_user = cursor.fetchone()
+
+    # 삭제된 사용자 등의 오래된 세션 처리
+    if current_user is None:
+        session.clear()
+        flash('사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.')
+        return redirect(url_for('login'))
+
     if request.method == 'POST':
-        bio = request.form.get('bio', '')
-        cursor.execute("UPDATE user SET bio = ? WHERE id = ?", (bio, session['user_id']))
+        # 앞뒤 공백을 제거하고 서버에서 길이를 직접 검사
+        bio = request.form.get('bio', '').strip()
+
+        if len(bio) > MAX_BIO_LENGTH:
+            flash(f'소개글은 {MAX_BIO_LENGTH}자 이하로 입력해주세요.')
+            return render_template(
+                'profile.html',
+                user=current_user
+            ), 400
+
+        cursor.execute(
+            "UPDATE user SET bio = ? WHERE id = ?",
+            (bio, session['user_id'])
+        )
         db.commit()
+
         flash('프로필이 업데이트되었습니다.')
         return redirect(url_for('profile'))
-    cursor.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],))
-    current_user = cursor.fetchone()
+
     return render_template('profile.html', user=current_user)
 
 # 상품 등록
@@ -197,20 +229,66 @@ def profile():
 def new_product():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+
     if request.method == 'POST':
-        title = request.form['title']
-        description = request.form['description']
-        price = request.form['price']
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        price_text = request.form.get('price', '').strip()
+
+        if not title:
+            flash('상품 제목을 입력해주세요.')
+            return render_template('new_product.html'), 400
+
+        if len(title) > MAX_PRODUCT_TITLE_LENGTH:
+            flash(f'상품 제목은 {MAX_PRODUCT_TITLE_LENGTH}자 이하로 입력해주세요.')
+            return render_template('new_product.html'), 400
+
+        if not description:
+            flash('상품 설명을 입력해주세요.')
+            return render_template('new_product.html'), 400
+
+        if len(description) > MAX_PRODUCT_DESCRIPTION_LENGTH:
+            flash(
+                f'상품 설명은 {MAX_PRODUCT_DESCRIPTION_LENGTH}자 이하로 입력해주세요.'
+            )
+            return render_template('new_product.html'), 400
+
+        # 숫자 이외의 문자와 지나치게 긴 숫자를 거부
+        if not re.fullmatch(r'[0-9]{1,10}', price_text):
+            flash('가격은 숫자로만 입력해주세요.')
+            return render_template('new_product.html'), 400
+
+        price = int(price_text)
+
+        if not 1 <= price <= MAX_PRODUCT_PRICE:
+            flash(
+                f'가격은 1원 이상 {MAX_PRODUCT_PRICE:,}원 이하로 입력해주세요.'
+            )
+            return render_template('new_product.html'), 400
+
         db = get_db()
         cursor = db.cursor()
         product_id = str(uuid.uuid4())
+
         cursor.execute(
-            "INSERT INTO product (id, title, description, price, seller_id) VALUES (?, ?, ?, ?, ?)",
-            (product_id, title, description, price, session['user_id'])
+            """
+            INSERT INTO product
+                (id, title, description, price, seller_id)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                product_id,
+                title,
+                description,
+                price,
+                session['user_id']
+            )
         )
         db.commit()
+
         flash('상품이 등록되었습니다.')
         return redirect(url_for('dashboard'))
+
     return render_template('new_product.html')
 
 # 상품 상세보기
@@ -233,19 +311,71 @@ def view_product(product_id):
 def report():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+
     if request.method == 'POST':
-        target_id = request.form['target_id']
-        reason = request.form['reason']
+        target_id = request.form.get('target_id', '').strip()
+        reason = request.form.get('reason', '').strip()
+
+        if not target_id:
+            flash('신고 대상을 입력해주세요.')
+            return render_template('report.html'), 400
+
+        # UUID 형식을 검사하고 표준 형식으로 변환
+        try:
+            target_id = str(uuid.UUID(target_id))
+        except ValueError:
+            flash('신고 대상 ID 형식이 올바르지 않습니다.')
+            return render_template('report.html'), 400
+
+        if not reason:
+            flash('신고 사유를 입력해주세요.')
+            return render_template('report.html'), 400
+
+        if len(reason) > MAX_REPORT_REASON_LENGTH:
+            flash(
+                f'신고 사유는 {MAX_REPORT_REASON_LENGTH}자 이하로 입력해주세요.'
+            )
+            return render_template('report.html'), 400
+
         db = get_db()
         cursor = db.cursor()
+
+        # 사용자 또는 상품 중 실제로 존재하는 대상인지 확인
+        cursor.execute(
+            "SELECT 1 FROM user WHERE id = ?",
+            (target_id,)
+        )
+        target_exists = cursor.fetchone() is not None
+
+        if not target_exists:
+            cursor.execute(
+                "SELECT 1 FROM product WHERE id = ?",
+                (target_id,)
+            )
+            target_exists = cursor.fetchone() is not None
+
+        if not target_exists:
+            flash('존재하지 않는 신고 대상입니다.')
+            return render_template('report.html'), 400
+
         report_id = str(uuid.uuid4())
         cursor.execute(
-            "INSERT INTO report (id, reporter_id, target_id, reason) VALUES (?, ?, ?, ?)",
-            (report_id, session['user_id'], target_id, reason)
+            """
+            INSERT INTO report (id, reporter_id, target_id, reason)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                report_id,
+                session['user_id'],
+                target_id,
+                reason
+            )
         )
         db.commit()
+
         flash('신고가 접수되었습니다.')
         return redirect(url_for('dashboard'))
+
     return render_template('report.html')
 
 # 실시간 채팅: 클라이언트가 메시지를 보내면 전체 브로드캐스트
