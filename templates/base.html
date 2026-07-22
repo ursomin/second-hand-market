@@ -2,91 +2,130 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}My Market{% endblock %}</title>
-  <!-- Socket.IO 클라이언트 라이브러리 -->
+
+  <!-- 대시보드의 실시간 채팅에서 사용하는 Socket.IO 클라이언트 라이브러리 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
   <style>
-    /* Notion 스타일 미니멀 디자인 */
+    /* 모든 요소가 padding과 border를 포함한 크기로 계산되게 한다. */
+    * {
+      box-sizing: border-box;
+    }
+
+    /* 서비스 전체에 공통으로 적용되는 기본 화면 스타일 */
     body {
-      background-color: #F7F7F7;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f7f7f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
       margin: 0;
-      padding: 0;
       color: #333;
     }
+
     nav {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
       background-color: #fff;
       padding: 20px;
       border-bottom: 1px solid #e0e0e0;
     }
+
     nav a {
-      text-decoration: none;
       color: #555;
-      margin-right: 15px;
       font-weight: 500;
+      text-decoration: none;
     }
+
+    nav a:hover {
+      color: #005bb5;
+    }
+
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: 40px auto;
-      background-color: #fff;
       padding: 40px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      background-color: #fff;
       border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
-    h1, h2, h3 {
-      font-weight: 600;
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 0;
       margin-bottom: 20px;
+      font-weight: 600;
     }
-    input, textarea, button {
+
+    h3:not(:first-child) {
+      margin-top: 36px;
+    }
+
+    input,
+    textarea,
+    button {
       width: 100%;
       padding: 10px;
       margin-bottom: 20px;
       border: 1px solid #e0e0e0;
       border-radius: 4px;
-      font-size: 16px;
+      font: inherit;
     }
+
     button {
-      background-color: #007AFF;
+      border: 0;
+      background-color: #007aff;
       color: #fff;
-      border: none;
       cursor: pointer;
       transition: background-color 0.2s;
     }
+
     button:hover {
-      background-color: #005BB5;
+      background-color: #005bb5;
     }
+
     ul {
-      list-style: none;
+      margin: 0;
       padding: 0;
+      list-style: none;
     }
+
     li {
       padding: 10px;
       border-bottom: 1px solid #e0e0e0;
     }
+
+    /* 서버가 flash()로 전달한 성공·오류 안내 문구 */
     .flash {
-      background-color: #FFECB3;
       padding: 10px;
-      border: 1px solid #FFB74D;
-      border-radius: 4px;
       margin-bottom: 20px;
+      background-color: #ffecb3;
+      border: 1px solid #ffb74d;
+      border-radius: 4px;
     }
-    /* 채팅 영역 스타일 */
+
+    /* 대시보드의 실시간 전체 채팅 영역 */
     #chat {
       margin-top: 40px;
     }
+
     #messages {
       height: 200px;
       overflow-y: auto;
-      border: 1px solid #e0e0e0;
       padding: 10px;
-      border-radius: 4px;
       margin-bottom: 10px;
       background-color: #fafafa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
     }
 
-   /* ㅇ */
+    /* 로그아웃은 상태를 변경하므로 링크가 아닌 POST 폼으로 전송한다. */
     nav .logout-form {
       display: inline;
+      margin: 0;
     }
 
     nav .logout-form button {
@@ -98,21 +137,116 @@
       color: #555;
       font: inherit;
       font-weight: 500;
-      cursor: pointer;
     }
 
     nav .logout-form button:hover {
       background: none;
-      color: #005BB5;
+      color: #005bb5;
+    }
+
+    /* 관리자 페이지의 표가 작은 화면에서도 잘리지 않게 한다. */
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .admin-table th,
+    .admin-table td {
+      padding: 12px;
+      border-bottom: 1px solid #e8e8e8;
+      text-align: left;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .admin-table th {
+      background-color: #fafafa;
+      color: #555;
+      font-size: 14px;
+    }
+
+    .admin-table .empty-row {
+      padding: 24px 12px;
+      color: #777;
+      text-align: center;
+    }
+
+    /* 표 안의 관리 폼과 버튼에는 일반 입력 폼의 100% 너비를 적용하지 않는다. */
+    .admin-action-form {
+      display: inline;
+      margin: 0;
+    }
+
+    .admin-action-form button {
+      width: auto;
+      min-width: 88px;
+      padding: 8px 12px;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .admin-action-form .danger-button {
+      background-color: #d93025;
+    }
+
+    .admin-action-form .danger-button:hover {
+      background-color: #b3261e;
+    }
+
+    .admin-action-form .restore-button {
+      background-color: #188038;
+    }
+
+    .admin-action-form .restore-button:hover {
+      background-color: #116b2e;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status-active,
+    .status-visible {
+      background-color: #e6f4ea;
+      color: #137333;
+    }
+
+    .status-restricted,
+    .status-blocked {
+      background-color: #fce8e6;
+      color: #c5221f;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        margin: 20px 12px;
+        padding: 24px 16px;
+      }
     }
   </style>
 </head>
 <body>
-  <nav>
+  <!-- 메뉴 표시는 세션 role을 사용하지만, 실제 권한 검사는 서버가 DB에서 다시 한다. -->
+  <nav aria-label="주 메뉴">
     {% if session.get('user_id') %}
       <a href="{{ url_for('dashboard') }}">대시보드</a>
       <a href="{{ url_for('profile') }}">프로필</a>
       <a href="{{ url_for('report') }}">신고하기</a>
+
+      {% if session.get('role') == 'admin' %}
+        <a href="{{ url_for('admin_dashboard') }}">관리자</a>
+      {% endif %}
+
+      <!-- 로그아웃은 세션을 변경하므로 POST 요청과 CSRF 토큰을 사용한다. -->
       <form class="logout-form" method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit">로그아웃</button>
@@ -122,17 +256,20 @@
       <a href="{{ url_for('register') }}">회원가입</a>
     {% endif %}
   </nav>
-  <div class="container">
+
+  <main class="container">
+    <!-- 라우트에서 flash()로 전달한 결과 메시지를 한 번씩 표시한다. -->
     {% with messages = get_flashed_messages() %}
       {% if messages %}
-        <ul>
+        <ul aria-live="polite">
           {% for message in messages %}
             <li class="flash">{{ message }}</li>
           {% endfor %}
         </ul>
       {% endif %}
     {% endwith %}
+
     {% block content %}{% endblock %}
-  </div>
+  </main>
 </body>
 </html>

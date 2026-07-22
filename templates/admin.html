@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}관리자 페이지{% endblock %}
+
+{% block content %}
+<h2>관리자 페이지</h2>
+
+<!-- 일반 사용자의 서비스 이용 상태를 관리하는 영역 -->
+<h3>사용자 관리</h3>
+<div class="table-wrapper">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th scope="col">사용자명</th>
+        <th scope="col">권한</th>
+        <th scope="col">상태</th>
+        <th scope="col">관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for managed_user in users %}
+        <tr>
+          <td>{{ managed_user.username }}</td>
+          <td>
+            {% if managed_user.role == 'admin' %}
+              관리자
+            {% else %}
+              일반 사용자
+            {% endif %}
+          </td>
+          <td>
+            {% if managed_user.status == 'active' %}
+              <span class="status-badge status-active">정상</span>
+            {% else %}
+              <span class="status-badge status-restricted">이용 제한</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if managed_user.role == 'admin' %}
+              관리자 계정
+            {% else %}
+              <!-- 상태 변경은 POST 요청이며 Flask-WTF가 CSRF 토큰을 검증한다. -->
+              <form
+                class="admin-action-form"
+                method="post"
+                action="{{ url_for(
+                  'admin_update_user_status',
+                  user_id=managed_user.id
+                ) }}"
+              >
+                <input
+                  type="hidden"
+                  name="csrf_token"
+                  value="{{ csrf_token() }}"
+                >
+
+                {% if managed_user.status == 'active' %}
+                  <button
+                    class="danger-button"
+                    type="submit"
+                    name="status"
+                    value="restricted"
+                  >
+                    이용 제한
+                  </button>
+                {% else %}
+                  <button
+                    class="restore-button"
+                    type="submit"
+                    name="status"
+                    value="active"
+                  >
+                    제한 해제
+                  </button>
+                {% endif %}
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td class="empty-row" colspan="4">등록된 사용자가 없습니다.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- 등록된 상품의 공개 또는 차단 상태를 관리하는 영역 -->
+<h3>상품 관리</h3>
+<div class="table-wrapper">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th scope="col">상품명</th>
+        <th scope="col">판매자</th>
+        <th scope="col">가격</th>
+        <th scope="col">상태</th>
+        <th scope="col">관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for product in products %}
+        <tr>
+          <td>{{ product.title }}</td>
+          <td>{{ product.seller_username }}</td>
+          <td>{{ product.price }}원</td>
+          <td>
+            {% if product.moderation_status == 'visible' %}
+              <span class="status-badge status-visible">공개</span>
+            {% else %}
+              <span class="status-badge status-blocked">차단</span>
+            {% endif %}
+          </td>
+          <td>
+            <!-- 상품 상태도 서버 데이터가 변경되므로 POST와 CSRF 토큰을 사용한다. -->
+            <form
+              class="admin-action-form"
+              method="post"
+              action="{{ url_for(
+                'admin_update_product_moderation',
+                product_id=product.id
+              ) }}"
+            >
+              <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token() }}"
+              >
+
+              {% if product.moderation_status == 'visible' %}
+                <button
+                  class="danger-button"
+                  type="submit"
+                  name="moderation_status"
+                  value="blocked"
+                >
+                  상품 차단
+                </button>
+              {% else %}
+                <button
+                  class="restore-button"
+                  type="submit"
+                  name="moderation_status"
+                  value="visible"
+                >
+                  차단 해제
+                </button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td class="empty-row" colspan="5">등록된 상품이 없습니다.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
