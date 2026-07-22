@@ -4,9 +4,11 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_socketio import SocketIO, send
 # 비밀번호 해시 적용
 from werkzeug.security import generate_password_hash, check_password_hash
+import re
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!' # app.config는 Flask 앱의 설정값 모음
+USERNAME_PATTERN = re.compile(r'[A-Za-z0-9_]{4,20}')
 DATABASE = 'market.db'
 socketio = SocketIO(app) # 현재 Flask app에 실시간 통신 기능을 붙임
 
@@ -72,22 +74,45 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        password_hash = generate_password_hash(password) # 비밀번호 해시값 생성
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '') # 비밀번호에는 .strip()을 붙이지 않음. 앞뒤 공백도 사용자가 정한 실제 비밀번호의 일부일 수 있기 때문
+
+        # 사용자명: 4~20자, 영문·숫자·밑줄만 허용
+        if not USERNAME_PATTERN.fullmatch(username):
+            flash('사용자명은 4~20자의 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.')
+            return render_template('register.html'), 400
+
+        # 비밀번호: 8~64자
+        if not 8 <= len(password) <= 64:
+            flash('비밀번호는 8~64자로 입력해야 합니다.')
+            return render_template('register.html'), 400
+
         db = get_db()
         cursor = db.cursor()
-        # 중복 사용자 체크
-        cursor.execute("SELECT * FROM user WHERE username = ?", (username,))
+
+        # 중복 사용자 확인
+        cursor.execute(
+            "SELECT * FROM user WHERE username = ?",
+            (username,)
+        )
+
         if cursor.fetchone() is not None:
             flash('이미 존재하는 사용자명입니다.')
-            return redirect(url_for('register'))
-        user_id = str(uuid.uuid4()) # 고유 아이디 생성
-        cursor.execute("INSERT INTO user (id, username, password) VALUES (?, ?, ?)",
-                       (user_id, username, password_hash))
+            return render_template('register.html'), 400
+
+        # 모든 검증을 통과한 뒤 비밀번호 해시 생성
+        user_id = str(uuid.uuid4())
+        password_hash = generate_password_hash(password)
+
+        cursor.execute(
+            "INSERT INTO user (id, username, password) VALUES (?, ?, ?)",
+            (user_id, username, password_hash)
+        )
         db.commit()
+
         flash('회원가입이 완료되었습니다. 로그인 해주세요.')
         return redirect(url_for('login'))
+
     return render_template('register.html')
 
 # 로그인
